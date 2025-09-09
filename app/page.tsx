@@ -1,43 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Heart, Sparkles, Gift, Star, ShoppingCart, History, Filter, Home, Search, ChevronRight } from "lucide-react"
+import { MessageSquare, Heart, Sparkles, Gift, ChevronRight } from "lucide-react"
 import { ChatSidebar } from "@/components/chat-sidebar"
-import { WishlistIcon } from "@/components/wishlist-icon"
 import { DotPattern } from "@/components/magicui/dot-pattern"
 import { AnimatedGradientText } from "@/components/magicui/animated-gradient-text"
 import { Highlighter } from "@/components/magicui/highlighter"
 import { AI_Prompt } from "@/components/ui/animated-ai-input"
-import { NavBar } from "@/components/ui/tubelight-navbar"
 import { Marquee } from "@/components/ui/marquee"
 import { ecommerceBrands } from "@/components/ui/gift-logos"
 import { AvatarCircles } from "@/components/ui/avatar-circles"
 import { StackedCircularFooter } from "@/components/ui/stacked-circular-footer"
 import { cn } from "@/lib/utils"
-
-interface Product {
-  id: string
-  name: string
-  description: string
-  price: number
-  originalPrice?: number
-  image: string
-  rating: number
-  reviewCount: number
-  category: string
-  brand: string
-  features: string[]
-  inStock: boolean
-  fastShipping: boolean
-  aiReasoning?: string
-  suitabilityScore?: number
-  occasionMatch?: number
-  ageAppropriate?: boolean
-}
 
 interface ChatHistory {
   id: string
@@ -48,6 +25,291 @@ interface ChatHistory {
 }
 
 export default function HomePage() {
+  const [prompt, setPrompt] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [recommendations, setRecommendations] = useState<string>("")
+  const [errorType, setErrorType] = useState<string | null>(null)
+  const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false)
+  const [currentConversation, setCurrentConversation] = useState<ChatHistory | null>(null)
+
+  // Avatar URLs for gift recommendation users
+  const avatarUrls = [
+    "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
+    "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
+    "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
+    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop&crop=face"
+  ]
+
+  const navigationTabs = [
+    { name: 'Home', active: true },
+    { name: 'Search', active: false },
+    { name: 'History', active: false },
+    { name: 'Wishlist', active: false }
+  ]
+
+  const handleNavClick = (tabName: string) => {
+    if (tabName === 'History') {
+      setIsChatSidebarOpen(!isChatSidebarOpen)
+    }
+  }
+
+  const handleSubmit = async (promptText: string) => {
+    if (!promptText.trim()) return
+
+    setPrompt(promptText)
+    setIsLoading(true)
+    setErrorType(null)
+
+    try {
+      const response = await fetch("/api/ai-recommendations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt: promptText }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setRecommendations(data.data.recommendations)
+        saveToChatHistory(promptText, data.data.recipient_profile, data.data.occasion_info)
+      } else {
+        setErrorType(data.error || "UNKNOWN_ERROR")
+        setRecommendations("")
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      setErrorType("UNKNOWN_ERROR")
+      setRecommendations("")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const saveToChatHistory = (prompt: string, recipient_profile?: any, occasion_info?: any) => {
+    const saved = localStorage.getItem("gift-chat-history")
+    let history = saved ? JSON.parse(saved) : []
+    
+    const newHistory: ChatHistory = {
+      id: Date.now().toString(),
+      prompt,
+      timestamp: new Date(),
+      recipient_profile,
+      occasion_info
+    }
+    
+    history = [newHistory, ...history.slice(0, 49)]
+    localStorage.setItem("gift-chat-history", JSON.stringify(history))
+  }
+
+  const loadConversation = (history: ChatHistory) => {
+    setPrompt(history.prompt)
+    setCurrentConversation(history)
+    setIsChatSidebarOpen(false)
+  }
+
+  return (
+    <div className="min-h-screen w-full bg-gradient-to-br from-yellow-50 via-orange-50 to-yellow-100 relative overflow-hidden">
+      {/* Background Pattern */}
+      <DotPattern
+        className={cn(
+          "absolute inset-0 z-[1] pointer-events-none opacity-30",
+        )}
+      />
+      
+      {/* Navigation Bar */}
+      <nav className="relative z-10 flex justify-center pt-8 pb-4">
+        <div className="flex items-center bg-white/80 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg">
+          {navigationTabs.map((tab) => (
+            <button
+              key={tab.name}
+              onClick={() => handleNavClick(tab.name)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                tab.active 
+                  ? 'bg-gray-900 text-white' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              {tab.name}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {/* Powered by AI Banner */}
+      <div className="flex justify-center pb-8 relative z-10">
+        <div className="group relative mx-auto flex items-center justify-center rounded-full px-4 py-2 bg-white/60 backdrop-blur-sm shadow-md hover:shadow-lg transition-all">
+          <span className="text-orange-500 mr-2">🎁</span>
+          <AnimatedGradientText className="text-sm font-medium text-gray-700">
+            Powered by Advanced AI Technology
+          </AnimatedGradientText>
+          <ChevronRight className="ml-2 h-4 w-4 text-gray-500" />
+        </div>
+      </div>
+
+      {/* Chat Sidebar */}
+      <ChatSidebar
+        isOpen={isChatSidebarOpen}
+        onClose={() => setIsChatSidebarOpen(false)}
+        onLoadConversation={loadConversation}
+        currentConversation={currentConversation}
+      />
+
+      <main className="max-w-4xl mx-auto px-4 py-8 relative z-10">
+        {/* Hero Section */}
+        <div className="text-center mb-12">
+          <div className="flex items-center justify-center space-x-3 mb-6">
+            <Sparkles className="h-8 w-8 text-blue-600" />
+            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 leading-tight">
+              AI-Powered Gift<br />Recommendations
+            </h1>
+            <Sparkles className="h-8 w-8 text-blue-600" />
+          </div>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+            Get{" "}
+            <Highlighter action="highlight" color="#87CEFA">
+              personalized gift suggestions
+            </Highlighter>{" "}
+            powered by advanced AI. Just describe who you're shopping for and let our AI find the{" "}
+            <Highlighter action="highlight" color="#98FB98">
+              perfect gifts
+            </Highlighter>
+            !
+          </p>
+        </div>
+
+        {/* AI Input */}
+        <div className="flex justify-center mb-8">
+          <AI_Prompt 
+            onSubmit={handleSubmit}
+            isLoading={isLoading}
+            placeholder="e.g., Birthday present for my 10-year-old nephew who loves science and robots"
+          />
+        </div>
+
+        {/* Quick Suggestions */}
+        <div className="flex flex-wrap justify-center gap-2 mb-12">
+          <Badge 
+            variant="secondary" 
+            className="cursor-pointer hover:bg-blue-100 transition-colors"
+            onClick={() => handleSubmit("Mom - Gardening")}
+          >
+            Mom - Gardening
+          </Badge>
+          <Badge 
+            variant="secondary" 
+            className="cursor-pointer hover:bg-blue-100 transition-colors"
+            onClick={() => handleSubmit("Husband - Cooking")}
+          >
+            Husband - Cooking
+          </Badge>
+          <Badge 
+            variant="secondary" 
+            className="cursor-pointer hover:bg-blue-100 transition-colors"
+            onClick={() => handleSubmit("Friend - Technology")}
+          >
+            Friend - Technology
+          </Badge>
+          <Badge 
+            variant="secondary" 
+            className="cursor-pointer hover:bg-blue-100 transition-colors"
+            onClick={() => handleSubmit("Daughter - Princesses")}
+          >
+            Daughter - Princesses
+          </Badge>
+        </div>
+
+        {/* Error Messages */}
+        {errorType === "MISSING_API_KEY" && (
+          <Card className="p-6 mb-8 bg-red-50 border-red-200">
+            <div className="flex items-start gap-4">
+              <MessageSquare className="h-6 w-6 text-red-600 mt-1" />
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-red-800 mb-2">API Key Setup Required</h3>
+                <p className="text-red-700 mb-4">
+                  Your OpenAI API key is not configured. Please add OPENAI_API_KEY to your environment variables.
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {errorType === "INVALID_API_KEY" && (
+          <Card className="p-6 mb-8 bg-red-50 border-red-200">
+            <div className="flex items-start gap-4">
+              <MessageSquare className="h-6 w-6 text-red-600 mt-1" />
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-red-800 mb-2">API Key Setup Required</h3>
+                <p className="text-red-700 mb-4">
+                  Your OpenAI API key is invalid or has been revoked. Please get a new API key.
+                </p>
+                <Button
+                  onClick={() => window.open("https://platform.openai.com/api-keys", "_blank")}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Get New API Key
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Recommendations */}
+        {recommendations && (
+          <Card className="mb-12">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Gift className="h-5 w-5 text-green-600" />
+                <span>AI Recommendations</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="prose max-w-none">
+                <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
+                  {recommendations}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Brand Logos */}
+        <div className="mb-12">
+          <Marquee pauseOnHover speed={25} className="py-4">
+            <div className="flex items-center space-x-16 mx-8">
+              {ecommerceBrands.map((brandName: string, index: number) => (
+                <div key={index} className="flex items-center justify-center min-w-[120px]">
+                  <span className="text-2xl font-serif font-bold text-gray-800 hover:text-blue-600 transition-colors duration-300 cursor-pointer">
+                    {brandName}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Marquee>
+        </div>
+
+        {/* Social Proof */}
+        <div className="text-center">
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            Trusted by thousands of gift seekers
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Join our community of happy customers who found perfect gifts
+          </p>
+          <div className="flex justify-center">
+            <AvatarCircles numPeople={2847} avatarUrls={avatarUrls} />
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <StackedCircularFooter />
+    </div>
+  )
+}
   const [prompt, setPrompt] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [recommendations, setRecommendations] = useState<string>("")
